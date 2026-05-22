@@ -1,0 +1,166 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hospital-db
+  namespace: hospital
+  labels:
+    app: hospital-db
+    tier: database
+    app.kubernetes.io/part-of: hospital
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hospital-db
+  strategy:
+    type: Recreate             # kill old pod first, then start new one
+                               # safe for single DB — avoids two pods writing same PVC
+  template:
+    metadata:
+      labels:
+        app: hospital-db
+        tier: database
+    spec:
+      serviceAccountName: hospital-db-sa
+
+      # ── Pod-level Security Context ─────────────────────────
+      securityContext:
+        runAsNonRoot: true     # postgres image runs as user 'postgres' — not root 
+        runAsUser: 999         # uid of 'postgres' user in postgres:16-alpine
+        runAsGroup: 999        # gid of 'postgres' user
+        fsGroup: 999           # PVC files owned by gid 999 so postgres can read/write
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5432
+              name: postgres
+              protocol: TCP
+
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: hospital-secrets
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: hospital-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hospital-secrets
+                  key: POSTGRES_PASSWORD
+            # Tells postgres where to store socket/pid file
+            # Must point to our writable emptyDir volume
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+
+          # ── Container-level Security Context ──────────────
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            capabilities:
+              drop: ["ALL"]
+            # NOTE: readOnlyRootFilesystem is NOT set for postgres.
+            # Postgres writes to /var/run/postgresql (socket/pid)
+            # and /tmp during normal operation — both covered by
+            # emptyDir volumes below instead of locking the whole fs.
+
+          # ── Startup Probe ──────────────────────────────────
+          # Postgres initialises its data directory on first boot
+          # which takes longer than normal starts.
+          # Allows up to 120s (20 * 6s) before giving up.
+          startupProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -d
+                - hospital_db
+            initialDelaySeconds: 10
+            periodSeconds: 6
+            failureThreshold: 20       # 20 * 6s = 120s max init time
+            successThreshold: 1
+            timeoutSeconds: 5
+
+          # ── Readiness Probe ────────────────────────────────
+          # Removes pod from Service endpoints if DB is not ready
+          # to accept connections (e.g. during checkpoint/vacuum).
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -d
+                - hospital_db
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+            successThreshold: 1
+            timeoutSeconds: 5
+
+          # ── Liveness Probe ─────────────────────────────────
+          # Restarts postgres if it stops accepting connections
+          # entirely (hung process, deadlock, OOM state).
+          # Long period to avoid restarting during heavy queries.
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+                - -d
+                - hospital_db
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+            successThreshold: 1
+            timeoutSeconds: 5
+
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+          volumeMounts:
+            # Persistent storage — actual database files
+            # Survives pod restarts 
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+
+            # Postgres socket + pid file live here at runtime
+            # Not persistent — recreated on every start
+            - name: postgres-run
+              mountPath: /var/run/postgresql
+
+            # Postgres uses /tmp during query processing
+            - name: tmp
+              mountPath: /tmp
+
+      volumes:
+        # PVC — real persistent data (survives pod death)
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: hospital-db-pvc
+
+        # emptyDir — runtime socket/pid (temporary, pod-scoped)
+        - name: postgres-run
+          emptyDir: {}
+
+        # emptyDir — runtime temp files (temporary, pod-scoped)
+        - name: tmp
+          emptyDir: {}

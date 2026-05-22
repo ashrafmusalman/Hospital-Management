@@ -1,0 +1,196 @@
+# =============================================================
+#  Traffic flow:
+#
+#  Browser → Ingress Controller → user-svc   (port 80)
+#  Browser → Ingress Controller → admin-svc  (port 80)
+#  Browser → Ingress Controller → api-svc    (port 3000)
+#  api-svc → db-svc                          (port 5432)
+#
+#  Ingress controller runs in namespace: ingress-nginx
+#  All app pods run in namespace: hospital
+# =============================================================
+
+
+# ── 1. DATABASE ───────────────────────────────────────────────
+# Accepts traffic from API pod only.
+# Sends nothing outbound — DB never initiates connections.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: db-allow-api-only
+  namespace: hospital
+  labels:
+    app.kubernetes.io/part-of: hospital
+spec:
+  podSelector:
+    matchLabels:
+      app: hospital-db
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: hospital-api
+      ports:
+        - protocol: TCP
+          port: 5432
+  egress: []                   # DB sends nothing outbound
+
+
+---
+# ── 2. API ────────────────────────────────────────────────────
+# Accepts traffic from:
+#   a) nginx ingress controller (browser → ingress → api)
+#   b) admin pod (internal pod-to-pod, defence in depth)
+#   c) user pod  (internal pod-to-pod, defence in depth)
+# Sends traffic to:
+#   a) DB on port 5432
+#   b) DNS on port 53 (required for DB hostname resolution)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-allow-ingress-and-frontend
+  namespace: hospital
+  labels:
+    app.kubernetes.io/part-of: hospital
+spec:
+  podSelector:
+    matchLabels:
+      app: hospital-api
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow traffic from nginx ingress controller namespace
+    # This is how browser → api.hospital.local reaches the API
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 3000
+    # Allow internal pod-to-pod traffic from frontends
+    - from:
+        - podSelector:
+            matchLabels:
+              app: hospital-admin
+        - podSelector:
+            matchLabels:
+              app: hospital-user
+      ports:
+        - protocol: TCP
+          port: 3000
+  egress:
+    # API can only talk to DB
+    - to:
+        - podSelector:
+            matchLabels:
+              app: hospital-db
+      ports:
+        - protocol: TCP
+          port: 5432
+    # DNS — required to resolve 'postgres' hostname to DB service IP
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+
+---
+# ── 3. ADMIN PANEL ────────────────────────────────────────────
+# Accepts traffic from:
+#   a) nginx ingress controller (browser → admin.hospital.local)
+# Sends traffic to:
+#   a) API pod (internal, defence in depth)
+#   b) DNS
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: admin-policy
+  namespace: hospital
+  labels:
+    app.kubernetes.io/part-of: hospital
+spec:
+  podSelector:
+    matchLabels:
+      app: hospital-admin
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress controller to reach admin panel
+    # This is how browser → admin.hospital.local works
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 80
+  egress:
+    # Admin can only call the API — cannot reach DB directly
+    - to:
+        - podSelector:
+            matchLabels:
+              app: hospital-api
+      ports:
+        - protocol: TCP
+          port: 3000
+    # DNS
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+
+---
+# ── 4. USER PORTAL ────────────────────────────────────────────
+# Accepts traffic from:
+#   a) nginx ingress controller (browser → hospital.local)
+# Sends traffic to:
+#   a) API pod (internal, defence in depth)
+#   b) DNS
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: user-policy
+  namespace: hospital
+  labels:
+    app.kubernetes.io/part-of: hospital
+spec:
+  podSelector:
+    matchLabels:
+      app: hospital-user
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress controller to reach user portal
+    # This is how browser → hospital.local works
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 80
+  egress:
+    # User portal can only call the API — cannot reach DB directly
+    - to:
+        - podSelector:
+            matchLabels:
+              app: hospital-api
+      ports:
+        - protocol: TCP
+          port: 3000
+    # DNS
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

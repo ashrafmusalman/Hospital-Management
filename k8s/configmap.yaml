@@ -1,9 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: hospital-config
-data:
-  DB_HOST: "hospital-postgres-db.cmb6ge6gu5ut.us-east-1.rds.amazonaws.com"
-  DB_PORT: "5432"
-  DB_USER: ashraf
-  DB_NAME: hospital

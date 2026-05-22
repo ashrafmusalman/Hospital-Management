@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: hospital
+  labels:
+    app: hospital-db
+spec:
+  type: ClusterIP
+  selector:
+    app: hospital-db
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+      protocol: TCP

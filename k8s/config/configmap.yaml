@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hospital-config
+  namespace: hospital
+  labels:
+    app.kubernetes.io/part-of: hospital
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  DB_HOST: "postgres"
+  DB_PORT: "5432"
+  DB_NAME: "hospital_db"
+  API_BASE_URL: "http://hospital-api-svc:3000"

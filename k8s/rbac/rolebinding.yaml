@@ -1,0 +1,27 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hospital-api-role
+  namespace: hospital
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["hospital-secrets"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hospital-api-rolebinding
+  namespace: hospital
+subjects:
+  - kind: ServiceAccount
+    name: hospital-api-sa
+    namespace: hospital
+roleRef:
+  kind: Role
+  name: hospital-api-role
+  apiGroup: rbac.authorization.k8s.io

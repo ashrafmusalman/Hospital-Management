@@ -1,0 +1,125 @@
+# =============================================================
+#  Two separate Ingress resources:
+#
+#  1. hospital-frontend-ingress  →  user + admin (port 80)
+#     No CORS, higher rate limit for static asset loading
+#
+#  2. hospital-api-ingress       →  FastAPI backend (port 3000)
+#     CORS enabled, strict rate limiting, larger body for uploads
+# =============================================================
+
+
+# ── 1. FRONTEND INGRESS ───────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hospital-frontend-ingress
+  namespace: hospital
+  labels:
+    app.kubernetes.io/part-of: hospital
+  annotations:
+    # Timeouts — short, frontend serves static files only
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "30"
+
+    # Higher rate limit — browsers load many JS/CSS/image files
+    # simultaneously when SPA loads. 20 req/s would throttle this.
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+
+    # No CORS here — frontend serves HTML/JS files, not an API.
+    # CORS is only relevant on the API ingress below.
+
+    # Disable SSL redirect until TLS cert is configured
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+
+spec:
+  ingressClassName: nginx
+  rules:
+
+    # User Portal → http://hospital.local
+    - host: hospital.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hospital-user-svc
+                port:
+                  number: 80
+
+    # Admin Panel → http://admin.hospital.local
+    - host: admin.hospital.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hospital-admin-svc
+                port:
+                  number: 80
+
+  # tls:
+  #   - hosts:
+  #       - hospital.local
+  #       - admin.hospital.local
+  #     secretName: hospital-frontend-tls
+
+
+---
+# ── 2. API INGRESS ────────────────────────────────────────────
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hospital-api-ingress
+  namespace: hospital
+  labels:
+    app.kubernetes.io/part-of: hospital
+  annotations:
+    # Timeouts — longer, API runs DB queries
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "30"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+
+    # Upload size — your API accepts doctor profile image uploads
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+
+    # Rate limiting — strict on API to protect /auth endpoints
+    # 20 req/s per IP is fine for API calls (not static assets)
+    nginx.ingress.kubernetes.io/limit-rps: "20"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "5"
+
+    # CORS — only on API ingress, not on frontend
+    # Allows browser calls from user and admin frontends
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "http://hospital.local,http://admin.hospital.local"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization, Content-Type, Accept"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/cors-max-age: "3600"
+
+    # Disable SSL redirect until TLS cert is configured
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+
+spec:
+  ingressClassName: nginx
+  rules:
+
+    # FastAPI backend → http://api.hospital.local
+    - host: api.hospital.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hospital-api-svc
+                port:
+                  number: 3000
+
+  # tls:
+  #   - hosts:
+  #       - api.hospital.local
+  #     secretName: hospital-api-tls
