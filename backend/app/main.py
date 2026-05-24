@@ -26,18 +26,11 @@ app = FastAPI(title="Hospital API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        # ── local dev ──────────────────────────
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5174",
-        "http://127.0.0.1:5174",
-        "http://localhost:5175",
-        "http://127.0.0.1:5175",
-
-        # ── Kubernetes ingress hostnames ────────
         "http://hospital.local",
         "http://admin.hospital.local",
+        "http://api.hospital.local",
     ],
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -60,10 +60,6 @@ class AppointmentRepository:
         )
 
     def get_all(self):
-        """
-        Returns all appointments with patient name and doctor name via JOIN.
-        Each row is a labeled Row object (not a plain ORM instance).
-        """
         return (
             self.db.query(
                 Appointment.id.label("id"),
@@ -101,7 +97,6 @@ class AppointmentRepository:
         )
 
     def mark_completed(self, appointment_id: int):
-        """Set status = 'completed' for the given appointment."""
         appointment = (
             self.db.query(Appointment)
             .filter(Appointment.id == appointment_id)
@@ -113,3 +108,25 @@ class AppointmentRepository:
         self.db.commit()
         self.db.refresh(appointment)
         return appointment
+
+    def get_weekly_counts(self):
+        from sqlalchemy import func, cast, Date
+        from datetime import datetime, timedelta, timezone
+
+        today = datetime.now(timezone.utc).date()
+        seven_days_ago = today - timedelta(days=6)
+
+        rows = (
+            self.db.query(
+                cast(func.date_trunc('day', Appointment.appointment_time), Date).label("day"),
+                Appointment.status.label("status"),
+                func.count(Appointment.id).label("count"),
+            )
+            .filter(
+                func.date_trunc('day', Appointment.appointment_time) >= str(seven_days_ago)
+            )
+            .group_by("day", "status")
+            .order_by("day")
+            .all()
+        )
+        return rows

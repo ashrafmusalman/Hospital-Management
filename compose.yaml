@@ -3,69 +3,53 @@ services:
   postgres:
     image: postgres:15
     container_name: hospital_postgres
-
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: root
       POSTGRES_DB: hospital_db
-
     ports:
       - "5432:5432"
-
     volumes:
       - postgres_data:/var/lib/postgresql/data
-
     restart: always
-
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   backend:
     build: ./backend
     image: ashrafkhan0277/hospital-api:1.0
     container_name: hospital_backend
-
     ports:
       - "8000:8000"
-
     depends_on:
-      - postgres
-
+      postgres:
+        condition: service_healthy
     env_file:
       - ./backend/.env.local
-
     restart: always
-
 
   admin:
     build: ./frontend/admin
     image: ashrafkhan0277/hospital-admin:1.0
     container_name: hospital_admin_frontend
-
-    # Nginx runs on port 80 inside the container
-    # Host port 5173 maps to container port 80
     ports:
       - "5173:80"
-
     depends_on:
       - backend
-
     restart: always
-
 
   user:
     build: ./frontend/user
     image: ashrafkhan0277/hospital-user:1.0
     container_name: hospital_user_frontend
-
-    # Nginx runs on port 80 inside the container
-    # Host port 5174 maps to container port 80
     ports:
       - "5174:80"
-
     depends_on:
       - backend
-
     restart: always
-
 
 volumes:
   postgres_data:

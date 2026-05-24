@@ -35,7 +35,7 @@ spec:
             - sh
             - -c
             - |
-              until nc -z hospital-api-svc 3000; do
+              until nc -z hospital-api-svc 8000; do
                 echo "Waiting for API..."; sleep 3;
               done
               echo "API is ready!"
@@ -48,7 +48,7 @@ spec:
       containers:
         - name: hospital-admin
           image: ashrafkhan0277/hospital-admin:1.0
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 80
               name: http

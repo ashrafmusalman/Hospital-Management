@@ -15,6 +15,14 @@ def appointment_summary(
     return appointment_service.get_appointments_summary()
 
 
+@router.get("/weekly")
+def appointment_weekly(
+    appointment_service: AppointmentService = Depends(get_appointment_service),
+) -> Any:
+    """Returns last 7 days appointment counts grouped by status."""
+    return appointment_service.get_weekly_summary()
+
+
 @router.get("/list")
 def appointment_list(
     appointment_service: AppointmentService = Depends(get_appointment_service),
@@ -30,7 +38,6 @@ def appointment_detail(
     return appointment_service.get_appointment_detail(appointment_id)
 
 
-# ── NEW ──────────────────────────────────────────────────────────────────────
 @router.put("/{appointment_id}/complete")
 def mark_completed(
     appointment_id: int,

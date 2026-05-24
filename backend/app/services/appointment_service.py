@@ -7,16 +7,8 @@ class AppointmentService:
     def __init__(self, appointment_repo: AppointmentRepository):
         self.appointment_repo = appointment_repo
 
-    # ── helpers ───────────────────────────────────────────────────────────
-
     @staticmethod
     def _row_to_dict(row):
-        """
-        Convert a SQLAlchemy Row (from a labeled-column / join query) to a
-        plain dict.  Works for both SQLAlchemy 1.4 and 2.x.
-        """
-        # Row._mapping is available in SA 1.4+; fall back to _asdict() for
-        # older versions.
         try:
             return dict(row._mapping)
         except AttributeError:
@@ -24,10 +16,6 @@ class AppointmentService:
 
     @staticmethod
     def _orm_to_dict(obj):
-        """
-        Convert a plain ORM model instance to a dict using the table columns.
-        Excludes SQLAlchemy internal state.
-        """
         return {
             col.name: getattr(obj, col.name)
             for col in obj.__table__.columns
@@ -90,34 +78,17 @@ class AppointmentService:
         }
 
     def list_appointments(self):
-        """
-        Returns all appointments (with patient/doctor names) as a list of
-        plain dicts so FastAPI can serialize them without a response_model.
-        get_all() now returns labeled Row objects, so use _row_to_dict.
-        """
-        rows = self.appointment_repo.get_all()   # list of labeled Row objects
+        rows = self.appointment_repo.get_all()
         return [self._row_to_dict(r) for r in rows]
 
     def get_appointment_detail(self, appointment_id: int):
-        """
-        Returns a single appointment with joined patient/doctor data as a
-        plain dict so FastAPI can serialize the labeled-column Row.
-        """
         row = self.appointment_repo.get_detail_by_id(appointment_id)
-
         if not row:
             raise HTTPException(status_code=404, detail="Appointment not found")
-
-        # Row → dict so FastAPI's JSON encoder can handle it
         return self._row_to_dict(row)
 
     def mark_as_completed(self, appointment_id: int):
-        """
-        Mark a booked appointment as completed.
-        Raises 404 if not found, 400 if already cancelled or completed.
-        """
         appointment = self.appointment_repo.get_by_id(appointment_id)
-
         if not appointment:
             raise HTTPException(status_code=404, detail="Appointment not found")
         if appointment.status == "completed":
@@ -127,3 +98,29 @@ class AppointmentService:
 
         updated = self.appointment_repo.mark_completed(appointment_id)
         return self._orm_to_dict(updated)
+
+    def get_weekly_summary(self):
+        from datetime import datetime, timedelta, timezone
+
+        rows = self.appointment_repo.get_weekly_counts()
+
+        today = datetime.now(timezone.utc).date()
+        days = [(today - timedelta(days=i)) for i in range(6, -1, -1)]
+
+        data = {
+            str(d): {
+                "day":       d.strftime("%a"),
+                "date":      str(d),
+                "booked":    0,
+                "completed": 0,
+                "cancelled": 0,
+            }
+            for d in days
+        }
+
+        for row in rows:
+            key = str(row.day)
+            if key in data:
+                data[key][row.status] = row.count
+
+        return list(data.values())

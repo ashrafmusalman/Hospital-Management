@@ -49,3 +49,6 @@ export const getAppointmentDetail = (id) =>
  */
 export const markAppointmentCompleted = (id) =>
   api.put(`/admin/appointments/${id}/complete`);
+
+export const getWeeklyAppointments = () =>
+  api.get("/admin/appointments/weekly");
