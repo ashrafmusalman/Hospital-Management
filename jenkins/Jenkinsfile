@@ -5,6 +5,7 @@ pipeline {
         DOCKER_USER  = "ashrafkhan0277"
         BUILD_TAG    = "${BUILD_NUMBER}"
         KUBECONFIG   = "/var/lib/jenkins/.kube/config"
+        NAMESPACE    = "hospital"
     }
 
     stages {
@@ -39,7 +40,7 @@ pipeline {
                     usernameVariable: "DOCKER_HUB_USER",
                     passwordVariable: "DOCKER_HUB_PASS"
                 )]) {
-                    sh "echo $DOCKER_HUB_PASS | docker login -u $DOCKER_HUB_USER --password-stdin"
+                    sh 'echo $DOCKER_HUB_PASS | docker login -u $DOCKER_HUB_USER --password-stdin'
                 }
             }
         }
@@ -49,16 +50,19 @@ pipeline {
                 stage("Push Backend") {
                     steps {
                         sh "docker push ${DOCKER_USER}/hospital-backend:${BUILD_TAG}"
+                        echo "Backend pushed"
                     }
                 }
                 stage("Push Admin Frontend") {
                     steps {
                         sh "docker push ${DOCKER_USER}/hospital-admin:${BUILD_TAG}"
+                        echo "Admin pushed"
                     }
                 }
                 stage("Push User Frontend") {
                     steps {
                         sh "docker push ${DOCKER_USER}/hospital-user:${BUILD_TAG}"
+                        echo "User pushed"
                     }
                 }
             }
@@ -67,36 +71,42 @@ pipeline {
         stage("Deploy to Kubernetes") {
             steps {
                 sh """
-                    echo "--- Networking, RBAC, Config first ---"
-                    kubectl apply -f k8s/networking/
-                    kubectl apply -f k8s/rbac/
-                    kubectl apply -f k8s/config/
+                    echo "--- Creating namespace if not exists ---"
+                    kubectl create namespace ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
 
-                    echo "--- Database ---"
-                    kubectl apply -f k8s/database/
+                    echo "--- Applying networking, RBAC, config first ---"
+                    kubectl apply -f k8s/networking/ -n ${NAMESPACE}
+                    kubectl apply -f k8s/rbac/       -n ${NAMESPACE}
+                    kubectl apply -f k8s/config/     -n ${NAMESPACE}
 
-                    echo "--- App layers ---"
-                    kubectl apply -f k8s/api/
-                    kubectl apply -f k8s/user/
-                    kubectl apply -f k8s/admin/
+                    echo "--- Applying database ---"
+                    kubectl apply -f k8s/database/ -n ${NAMESPACE}
 
-                    echo "--- Monitoring ---"
-                    kubectl apply -f k8s/monitoring/
+                    echo "--- Applying app layers ---"
+                    kubectl apply -f k8s/api/   -n ${NAMESPACE}
+                    kubectl apply -f k8s/user/  -n ${NAMESPACE}
+                    kubectl apply -f k8s/admin/ -n ${NAMESPACE}
 
-                    echo "--- Update images to build ${BUILD_TAG} ---"
+                    echo "--- Applying monitoring ---"
+                    kubectl apply -f k8s/monitoring/ -n ${NAMESPACE}
+
+                    echo "--- Updating images to build ${BUILD_TAG} ---"
                     kubectl set image deployment/hospital-backend \
-                        hospital-backend=${DOCKER_USER}/hospital-backend:${BUILD_TAG}
+                        hospital-backend=${DOCKER_USER}/hospital-backend:${BUILD_TAG} \
+                        -n ${NAMESPACE}
 
                     kubectl set image deployment/hospital-admin \
-                        hospital-admin=${DOCKER_USER}/hospital-admin:${BUILD_TAG}
+                        hospital-admin=${DOCKER_USER}/hospital-admin:${BUILD_TAG} \
+                        -n ${NAMESPACE}
 
                     kubectl set image deployment/hospital-user \
-                        hospital-user=${DOCKER_USER}/hospital-user:${BUILD_TAG}
+                        hospital-user=${DOCKER_USER}/hospital-user:${BUILD_TAG} \
+                        -n ${NAMESPACE}
 
-                    echo "--- Waiting for rollouts ---"
-                    kubectl rollout status deployment/hospital-backend --timeout=120s
-                    kubectl rollout status deployment/hospital-admin   --timeout=120s
-                    kubectl rollout status deployment/hospital-user    --timeout=120s
+                    echo "--- Waiting for rollouts to complete ---"
+                    kubectl rollout status deployment/hospital-backend --timeout=120s -n ${NAMESPACE}
+                    kubectl rollout status deployment/hospital-admin   --timeout=120s -n ${NAMESPACE}
+                    kubectl rollout status deployment/hospital-user    --timeout=120s -n ${NAMESPACE}
                 """
             }
         }
@@ -104,28 +114,38 @@ pipeline {
         stage("Verify") {
             steps {
                 sh """
-                    kubectl get pods -o wide
-                    kubectl get svc
-                    kubectl get deployments
+                    echo "--- Pods ---"
+                    kubectl get pods -n ${NAMESPACE} -o wide
+
+                    echo "--- Services ---"
+                    kubectl get svc -n ${NAMESPACE}
+
+                    echo "--- Deployments ---"
+                    kubectl get deployments -n ${NAMESPACE}
+
+                    echo "--- Ingress ---"
+                    kubectl get ingress -n ${NAMESPACE}
                 """
             }
         }
+
     }
 
     post {
         success {
-            echo "All 3 services deployed — Build ${BUILD_TAG}"
+            echo "Pipeline SUCCESS — Build ${BUILD_TAG} deployed to namespace ${NAMESPACE}"
         }
         failure {
-            echo "Pipeline FAILED — rolling back"
+            echo "Pipeline FAILED — Build ${BUILD_TAG} — rolling back"
             sh """
-                kubectl rollout undo deployment/hospital-backend || true
-                kubectl rollout undo deployment/hospital-admin   || true
-                kubectl rollout undo deployment/hospital-user    || true
+                kubectl rollout undo deployment/hospital-backend -n ${NAMESPACE} || true
+                kubectl rollout undo deployment/hospital-admin   -n ${NAMESPACE} || true
+                kubectl rollout undo deployment/hospital-user    -n ${NAMESPACE} || true
             """
         }
         always {
             sh "docker logout || true"
+            echo "Pipeline finished — Build ${BUILD_TAG}"
         }
     }
 }
