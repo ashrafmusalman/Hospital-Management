@@ -87,12 +87,12 @@ pipeline {
                     kubectl apply -f k8s/user/  -n ${NAMESPACE}
                     kubectl apply -f k8s/admin/ -n ${NAMESPACE}
 
-                    echo "--- Applying monitoring ---"
-                    kubectl apply -f k8s/monitoring/ -n ${NAMESPACE}
+                    echo "--- Applying monitoring (skip CRD errors) ---"
+                    kubectl apply -f k8s/monitoring/ -n ${NAMESPACE} || true
 
                     echo "--- Updating images to build ${BUILD_TAG} ---"
-                    kubectl set image deployment/hospital-backend \
-                        hospital-backend=${DOCKER_USER}/hospital-backend:${BUILD_TAG} \
+                    kubectl set image deployment/hospital-api \
+                        hospital-api=${DOCKER_USER}/hospital-backend:${BUILD_TAG} \
                         -n ${NAMESPACE}
 
                     kubectl set image deployment/hospital-admin \
@@ -103,10 +103,10 @@ pipeline {
                         hospital-user=${DOCKER_USER}/hospital-user:${BUILD_TAG} \
                         -n ${NAMESPACE}
 
-                    echo "--- Waiting for rollouts to complete ---"
-                    kubectl rollout status deployment/hospital-backend --timeout=120s -n ${NAMESPACE}
-                    kubectl rollout status deployment/hospital-admin   --timeout=120s -n ${NAMESPACE}
-                    kubectl rollout status deployment/hospital-user    --timeout=120s -n ${NAMESPACE}
+                    echo "--- Waiting for rollouts ---"
+                    kubectl rollout status deployment/hospital-api   --timeout=120s -n ${NAMESPACE}
+                    kubectl rollout status deployment/hospital-admin --timeout=120s -n ${NAMESPACE}
+                    kubectl rollout status deployment/hospital-user  --timeout=120s -n ${NAMESPACE}
                 """
             }
         }
@@ -133,14 +133,14 @@ pipeline {
 
     post {
         success {
-            echo "Pipeline SUCCESS — Build ${BUILD_TAG} deployed to namespace ${NAMESPACE}"
+            echo "Pipeline SUCCESS — Build ${BUILD_TAG} deployed to ${NAMESPACE}"
         }
         failure {
             echo "Pipeline FAILED — Build ${BUILD_TAG} — rolling back"
             sh """
-                kubectl rollout undo deployment/hospital-backend -n ${NAMESPACE} || true
-                kubectl rollout undo deployment/hospital-admin   -n ${NAMESPACE} || true
-                kubectl rollout undo deployment/hospital-user    -n ${NAMESPACE} || true
+                kubectl rollout undo deployment/hospital-api   -n ${NAMESPACE} || true
+                kubectl rollout undo deployment/hospital-admin -n ${NAMESPACE} || true
+                kubectl rollout undo deployment/hospital-user  -n ${NAMESPACE} || true
             """
         }
         always {
