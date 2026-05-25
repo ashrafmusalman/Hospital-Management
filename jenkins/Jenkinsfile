@@ -1,24 +1,37 @@
 pipeline {
     agent any
 
+    environment {
+        DOCKER_USER  = "ashrafkhan0277"
+        BUILD_TAG    = "${BUILD_NUMBER}"
+        KUBECONFIG   = "/var/lib/jenkins/.kube/config"
+    }
+
     stages {
 
-        stage("Pull code from github") {
-            steps {
-                git branch: "main",
-                url: "https://github.com/ashrafmusalman/doctor-api.git"
-                echo "CODE PULLED SUCCESSFULL"
+        stage("Build Images") {
+            parallel {
+                stage("Build Backend") {
+                    steps {
+                        sh "docker build -t ${DOCKER_USER}/hospital-backend:${BUILD_TAG} -f backend/Dockerfile backend/"
+                        echo "Backend image built"
+                    }
+                }
+                stage("Build Admin Frontend") {
+                    steps {
+                        sh "docker build -t ${DOCKER_USER}/hospital-admin:${BUILD_TAG} -f frontend/admin/Dockerfile frontend/admin/"
+                        echo "Admin frontend image built"
+                    }
+                }
+                stage("Build User Frontend") {
+                    steps {
+                        sh "docker build -t ${DOCKER_USER}/hospital-user:${BUILD_TAG} -f frontend/user/Dockerfile frontend/user/"
+                        echo "User frontend image built"
+                    }
+                }
             }
         }
 
-        stage("Build Docker Image") {
-            steps {
-                sh "docker build -t ashrafkhan0277/hospital-api:${BUILD_NUMBER} ."
-            }
-        }
-
-
-// here we have been injecting 
         stage("Docker Hub Login") {
             steps {
                 withCredentials([usernamePassword(
@@ -31,28 +44,88 @@ pipeline {
             }
         }
 
-        stage("Push Image") {
-            steps { 
-                sh "docker push ashrafkhan0277/hospital-api:${BUILD_NUMBER}"
+        stage("Push Images") {
+            parallel {
+                stage("Push Backend") {
+                    steps {
+                        sh "docker push ${DOCKER_USER}/hospital-backend:${BUILD_TAG}"
+                    }
+                }
+                stage("Push Admin Frontend") {
+                    steps {
+                        sh "docker push ${DOCKER_USER}/hospital-admin:${BUILD_TAG}"
+                    }
+                }
+                stage("Push User Frontend") {
+                    steps {
+                        sh "docker push ${DOCKER_USER}/hospital-user:${BUILD_TAG}"
+                    }
+                }
             }
         }
 
-       stage("Deploy to Kubernetes") {
-    steps {
-        sh """
-        # Apply app resources
-        kubectl apply -f k8s/
+        stage("Deploy to Kubernetes") {
+            steps {
+                sh """
+                    echo "--- Networking, RBAC, Config first ---"
+                    kubectl apply -f k8s/networking/
+                    kubectl apply -f k8s/rbac/
+                    kubectl apply -f k8s/config/
 
-        # Apply monitoring resources separately
-        kubectl apply -f k8s/monitoring/
+                    echo "--- Database ---"
+                    kubectl apply -f k8s/database/
 
-        # Update image
-        kubectl set image deployment/hospital-api \
-        hospital-api=ashrafkhan0277/hospital-api:${BUILD_NUMBER}
-        """
+                    echo "--- App layers ---"
+                    kubectl apply -f k8s/api/
+                    kubectl apply -f k8s/user/
+                    kubectl apply -f k8s/admin/
+
+                    echo "--- Monitoring ---"
+                    kubectl apply -f k8s/monitoring/
+
+                    echo "--- Update images to build ${BUILD_TAG} ---"
+                    kubectl set image deployment/hospital-backend \
+                        hospital-backend=${DOCKER_USER}/hospital-backend:${BUILD_TAG}
+
+                    kubectl set image deployment/hospital-admin \
+                        hospital-admin=${DOCKER_USER}/hospital-admin:${BUILD_TAG}
+
+                    kubectl set image deployment/hospital-user \
+                        hospital-user=${DOCKER_USER}/hospital-user:${BUILD_TAG}
+
+                    echo "--- Waiting for rollouts ---"
+                    kubectl rollout status deployment/hospital-backend --timeout=120s
+                    kubectl rollout status deployment/hospital-admin   --timeout=120s
+                    kubectl rollout status deployment/hospital-user    --timeout=120s
+                """
+            }
+        }
+
+        stage("Verify") {
+            steps {
+                sh """
+                    kubectl get pods -o wide
+                    kubectl get svc
+                    kubectl get deployments
+                """
+            }
+        }
     }
-}
 
-
+    post {
+        success {
+            echo "All 3 services deployed — Build ${BUILD_TAG}"
+        }
+        failure {
+            echo "Pipeline FAILED — rolling back"
+            sh """
+                kubectl rollout undo deployment/hospital-backend || true
+                kubectl rollout undo deployment/hospital-admin   || true
+                kubectl rollout undo deployment/hospital-user    || true
+            """
+        }
+        always {
+            sh "docker logout || true"
+        }
     }
 }
