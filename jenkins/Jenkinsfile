@@ -129,7 +129,7 @@ pipeline {
                         git config user.name "Jenkins CI"
                         git add k8s/api/deployment.yaml k8s/admin/deployment.yaml k8s/user/deployment.yaml
                         git commit -m "ci: update image tags to build ${BUILD_TAG} [skip ci]"
-                        git push https://${GIT_USER}:${GIT_PASS}@github.com/${GIT_USER}/hospital.git HEAD:main
+                       git push https://${GIT_USER}:${GIT_PASS}@github.com/ashrafmusalman/doctor-api.git HEAD:main
                     """
                 }
             }
