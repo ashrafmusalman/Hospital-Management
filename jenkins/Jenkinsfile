@@ -4,8 +4,6 @@ pipeline {
     environment {
         DOCKER_USER = "ashrafkhan0277"
         BUILD_TAG   = "${BUILD_NUMBER}"
-        KUBECONFIG  = "/var/lib/jenkins/.kube/config"
-        NAMESPACE   = "hospital"
     }
 
     options {
@@ -99,7 +97,7 @@ pipeline {
             }
         }
 
-        stage("Update Image Tags in YAML") {
+        stage("Update Image Tags in Git") {
             steps {
                 sh """
                     echo "--- Injecting build tag ${BUILD_TAG} into YAMLs ---"
@@ -118,56 +116,22 @@ pipeline {
                     grep 'image:' k8s/admin/deployment.yaml
                     grep 'image:' k8s/user/deployment.yaml
                 """
-            }
-        }
 
-        stage("Deploy to Kubernetes") {
-            steps {
-                sh """
-                    echo "--- Creating namespace ---"
-                    kubectl create namespace ${NAMESPACE} --dry-run=client -o yaml | kubectl apply -f -
-
-                    echo "--- Foundation layer ---"
-                    kubectl apply -f k8s/networking/ -n ${NAMESPACE}
-                    kubectl apply -f k8s/rbac/       -n ${NAMESPACE}
-                    kubectl apply -f k8s/config/     -n ${NAMESPACE}
-
-                    echo "--- Database ---"
-                    kubectl apply -f k8s/database/ -n ${NAMESPACE}
-
-                    echo "--- Application ---"
-                    kubectl apply -f k8s/api/   -n ${NAMESPACE}
-                    kubectl apply -f k8s/user/  -n ${NAMESPACE}
-                    kubectl apply -f k8s/admin/ -n ${NAMESPACE}
-
-                    echo "--- Monitoring ---"
-                    kubectl apply -f k8s/monitoring/ -n ${NAMESPACE} || true
-
-                    echo "--- Deploy submitted to Kubernetes ---"
-                """
-            }
-        }
-
-        stage("Verify") {
-            steps {
-                sh """
-                    echo "--- Deployment image tags ---"
-                    kubectl get deployments -n ${NAMESPACE} \
-                        -o custom-columns=\
-NAME:.metadata.name,\
-IMAGE:.spec.template.spec.containers[0].image,\
-READY:.status.readyReplicas,\
-AVAILABLE:.status.availableReplicas
-
-                    echo "--- Pod status ---"
-                    kubectl get pods -n ${NAMESPACE} -o wide
-
-                    echo "--- Services ---"
-                    kubectl get svc -n ${NAMESPACE}
-
-                    echo "--- Ingress ---"
-                    kubectl get ingress -n ${NAMESPACE}
-                """
+                // Commit and push updated YAMLs back to Git
+                // ArgoCD watches this repo and auto-syncs the new tags
+                withCredentials([usernamePassword(
+                    credentialsId: "Jenkin-PAT",
+                    usernameVariable: "GIT_USER",
+                    passwordVariable: "GIT_PASS"
+                )]) {
+                    sh """
+                        git config user.email "jenkins@ci.local"
+                        git config user.name "Jenkins CI"
+                        git add k8s/api/deployment.yaml k8s/admin/deployment.yaml k8s/user/deployment.yaml
+                        git commit -m "ci: update image tags to build ${BUILD_TAG} [skip ci]"
+                        git push https://${GIT_USER}:${GIT_PASS}@github.com/${GIT_USER}/hospital.git HEAD:main
+                    """
+                }
             }
         }
 
@@ -175,15 +139,10 @@ AVAILABLE:.status.availableReplicas
 
     post {
         success {
-            echo "Build ${BUILD_TAG} delivered — Kubernetes rolling out in background"
+            echo "CI complete — Build ${BUILD_TAG} images pushed to Docker Hub. ArgoCD will sync and deploy automatically."
         }
         failure {
-            echo "Pipeline FAILED — Build ${BUILD_TAG} — rolling back"
-            sh """
-                kubectl rollout undo deployment/hospital-api   -n ${NAMESPACE} || true
-                kubectl rollout undo deployment/hospital-admin -n ${NAMESPACE} || true
-                kubectl rollout undo deployment/hospital-user  -n ${NAMESPACE} || true
-            """
+            echo "Pipeline FAILED — Build ${BUILD_TAG} — no deployment triggered."
         }
         always {
             sh """
