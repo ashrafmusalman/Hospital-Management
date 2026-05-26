@@ -5,8 +5,6 @@ metadata:
   namespace: hospital
   labels:
     app: hospital-db
-    tier: database
-    app.kubernetes.io/part-of: hospital
 spec:
   replicas: 1
   selector:
@@ -18,24 +16,13 @@ spec:
     metadata:
       labels:
         app: hospital-db
-        tier: database
     spec:
-      serviceAccountName: hospital-db-sa
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 999
-        runAsGroup: 999
-        fsGroup: 999
-        seccompProfile:
-          type: RuntimeDefault
       containers:
         - name: postgres
           image: postgres:16-alpine
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 5432
-              name: postgres
-              protocol: TCP
           env:
             - name: POSTGRES_DB
               valueFrom:
@@ -54,52 +41,6 @@ spec:
                   key: POSTGRES_PASSWORD
             - name: PGDATA
               value: /var/lib/postgresql/data/pgdata
-          securityContext:
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true
-            runAsUser: 999
-            runAsGroup: 999
-            capabilities:
-              drop: ["ALL"]
-          startupProbe:
-            exec:
-              command:
-                - pg_isready
-                - -U
-                - postgres
-                - -d
-                - hospital_db
-            initialDelaySeconds: 10
-            periodSeconds: 6
-            failureThreshold: 20
-            successThreshold: 1
-            timeoutSeconds: 5
-          readinessProbe:
-            exec:
-              command:
-                - pg_isready
-                - -U
-                - postgres
-                - -d
-                - hospital_db
-            initialDelaySeconds: 10
-            periodSeconds: 10
-            failureThreshold: 3
-            successThreshold: 1
-            timeoutSeconds: 5
-          livenessProbe:
-            exec:
-              command:
-                - pg_isready
-                - -U
-                - postgres
-                - -d
-                - hospital_db
-            initialDelaySeconds: 30
-            periodSeconds: 30
-            failureThreshold: 3
-            successThreshold: 1
-            timeoutSeconds: 5
           resources:
             requests:
               memory: "256Mi"
@@ -110,15 +51,7 @@ spec:
           volumeMounts:
             - name: postgres-data
               mountPath: /var/lib/postgresql/data
-            - name: postgres-run
-              mountPath: /var/run/postgresql
-            - name: tmp
-              mountPath: /tmp
       volumes:
         - name: postgres-data
           persistentVolumeClaim:
             claimName: hospital-db-pvc
-        - name: postgres-run
-          emptyDir: {}
-        - name: tmp
-          emptyDir: {}
