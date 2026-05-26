@@ -25,7 +25,6 @@ pipeline {
                                 -t ${DOCKER_USER}/hospital-backend:latest \
                                 -f backend/Dockerfile backend/
                         """
-                        echo "Backend built"
                     }
                 }
                 stage("Build Admin") {
@@ -36,7 +35,6 @@ pipeline {
                                 -t ${DOCKER_USER}/hospital-admin:latest \
                                 -f frontend/admin/Dockerfile frontend/admin/
                         """
-                        echo "Admin built"
                     }
                 }
                 stage("Build User") {
@@ -47,13 +45,12 @@ pipeline {
                                 -t ${DOCKER_USER}/hospital-user:latest \
                                 -f frontend/user/Dockerfile frontend/user/
                         """
-                        echo "User built"
                     }
                 }
             }
         }
 
-        stage("Docker Hub Login") {
+        stage("Push Images") {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: "Jenkin-PAT",
@@ -62,69 +59,30 @@ pipeline {
                 )]) {
                     sh 'echo $DOCKER_HUB_PASS | docker login -u $DOCKER_HUB_USER --password-stdin'
                 }
-            }
-        }
-
-        stage("Push Images") {
-            parallel {
-                stage("Push Backend") {
-                    steps {
-                        sh """
-                            docker push ${DOCKER_USER}/hospital-backend:${BUILD_TAG}
-                            docker push ${DOCKER_USER}/hospital-backend:latest
-                        """
-                        echo "Backend pushed"
-                    }
-                }
-                stage("Push Admin") {
-                    steps {
-                        sh """
-                            docker push ${DOCKER_USER}/hospital-admin:${BUILD_TAG}
-                            docker push ${DOCKER_USER}/hospital-admin:latest
-                        """
-                        echo "Admin pushed"
-                    }
-                }
-                stage("Push User") {
-                    steps {
-                        sh """
-                            docker push ${DOCKER_USER}/hospital-user:${BUILD_TAG}
-                            docker push ${DOCKER_USER}/hospital-user:latest
-                        """
-                        echo "User pushed"
-                    }
-                }
+                sh """
+                    docker push ${DOCKER_USER}/hospital-backend:${BUILD_TAG}
+                    docker push ${DOCKER_USER}/hospital-backend:latest
+                    docker push ${DOCKER_USER}/hospital-admin:${BUILD_TAG}
+                    docker push ${DOCKER_USER}/hospital-admin:latest
+                    docker push ${DOCKER_USER}/hospital-user:${BUILD_TAG}
+                    docker push ${DOCKER_USER}/hospital-user:latest
+                """
             }
         }
 
         stage("Update Image Tags in Git") {
             steps {
-                sh """
-                    echo "--- Injecting build tag ${BUILD_TAG} into YAMLs ---"
-
-                    sed -i 's|${DOCKER_USER}/hospital-backend:.*|${DOCKER_USER}/hospital-backend:${BUILD_TAG}|g' \
-                        k8s/api/deployment.yaml
-
-                    sed -i 's|${DOCKER_USER}/hospital-admin:.*|${DOCKER_USER}/hospital-admin:${BUILD_TAG}|g' \
-                        k8s/admin/deployment.yaml
-
-                    sed -i 's|${DOCKER_USER}/hospital-user:.*|${DOCKER_USER}/hospital-user:${BUILD_TAG}|g' \
-                        k8s/user/deployment.yaml
-
-                    echo "--- Verifying tags ---"
-                    grep 'image:' k8s/api/deployment.yaml
-                    grep 'image:' k8s/admin/deployment.yaml
-                    grep 'image:' k8s/user/deployment.yaml
-                """
-
-                // Commit and push updated YAMLs back to Git
-                // ArgoCD watches this repo and auto-syncs the new tags
                 withCredentials([usernamePassword(
                     credentialsId: "github-pat",
                     usernameVariable: "GIT_USER",
                     passwordVariable: "GIT_PASS"
                 )]) {
                     sh """
+                        git fetch https://\${GIT_USER}:\${GIT_PASS}@github.com/ashrafmusalman/doctor-api.git main
+                        git checkout FETCH_HEAD
+                        sed -i 's|${DOCKER_USER}/hospital-backend:.*|${DOCKER_USER}/hospital-backend:${BUILD_TAG}|g' k8s/api/deployment.yaml
+                        sed -i 's|${DOCKER_USER}/hospital-admin:.*|${DOCKER_USER}/hospital-admin:${BUILD_TAG}|g' k8s/admin/deployment.yaml
+                        sed -i 's|${DOCKER_USER}/hospital-user:.*|${DOCKER_USER}/hospital-user:${BUILD_TAG}|g' k8s/user/deployment.yaml
                         git config user.email "jenkins@ci.local"
                         git config user.name "Jenkins CI"
                         git add k8s/api/deployment.yaml k8s/admin/deployment.yaml k8s/user/deployment.yaml
@@ -139,10 +97,10 @@ pipeline {
 
     post {
         success {
-            echo "CI complete — Build ${BUILD_TAG} images pushed to Docker Hub. ArgoCD will sync and deploy automatically."
+            echo "CI complete — Build ${BUILD_TAG} pushed. ArgoCD will deploy automatically."
         }
         failure {
-            echo "Pipeline FAILED — Build ${BUILD_TAG} — no deployment triggered."
+            echo "Pipeline FAILED — Build ${BUILD_TAG}"
         }
         always {
             sh """
