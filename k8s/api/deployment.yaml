@@ -52,7 +52,7 @@ spec:
               drop: ["ALL"]
       containers:
         - name: hospital-api
-          image: ashrafkhan0277/hospital-backend:latest
+          image: ashrafkhan0277/hospital-backend:6
           imagePullPolicy: Always
           ports:
             - containerPort: 8000

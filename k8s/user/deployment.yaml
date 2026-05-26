@@ -30,7 +30,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: hospital-user
-          image: ashrafkhan0277/hospital-user:latest
+          image: ashrafkhan0277/hospital-user:6
           imagePullPolicy: Always
           ports:
             - containerPort: 80
