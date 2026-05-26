@@ -6,7 +6,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/ashrafkhan0277/hospital.git
+    repoURL: https://github.com/ashrafmusalman/doctor-api.git
     targetRevision: main
     path: k8s                  # ArgoCD watches this folder
   destination:
