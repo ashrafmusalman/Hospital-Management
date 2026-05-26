@@ -22,9 +22,10 @@ RUN mkdir -p /var/cache/nginx/client_temp \
     && chmod -R 755 /var/cache/nginx
 
 COPY --from=builder /app/dist /usr/share/nginx/html
-
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
+
+USER nginx
 
 CMD ["nginx", "-g", "daemon off;"]
