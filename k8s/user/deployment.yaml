@@ -25,7 +25,6 @@ spec:
     spec:
       serviceAccountName: hospital-user-sa
       securityContext:
-        fsGroup: 101
         seccompProfile:
           type: RuntimeDefault
       containers:
