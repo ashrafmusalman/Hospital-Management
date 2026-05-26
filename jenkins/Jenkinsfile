@@ -120,7 +120,7 @@ pipeline {
                 // Commit and push updated YAMLs back to Git
                 // ArgoCD watches this repo and auto-syncs the new tags
                 withCredentials([usernamePassword(
-                    credentialsId: "Jenkin-PAT",
+                    credentialsId: "github-pat",
                     usernameVariable: "GIT_USER",
                     passwordVariable: "GIT_PASS"
                 )]) {
@@ -128,8 +128,8 @@ pipeline {
                         git config user.email "jenkins@ci.local"
                         git config user.name "Jenkins CI"
                         git add k8s/api/deployment.yaml k8s/admin/deployment.yaml k8s/user/deployment.yaml
-                        git commit -m "ci: update image tags to build ${BUILD_TAG} [skip ci]"
-                       git push https://${GIT_USER}:${GIT_PASS}@github.com/ashrafmusalman/doctor-api.git HEAD:main
+                        git diff --staged --quiet || git commit -m "ci: update image tags to build ${BUILD_TAG} [skip ci]"
+                        git push https://\${GIT_USER}:\${GIT_PASS}@github.com/ashrafmusalman/doctor-api.git HEAD:main
                     """
                 }
             }

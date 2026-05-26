@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hospital
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ashrafkhan0277/hospital.git
+    targetRevision: main
+    path: k8s                  # ArgoCD watches this folder
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: hospital
+  syncPolicy:
+    automated:
+      prune: true              # delete removed resources
+      selfHeal: true           # revert manual kubectl changes
+    syncOptions:
+      - CreateNamespace=true
