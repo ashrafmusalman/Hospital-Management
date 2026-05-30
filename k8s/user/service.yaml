@@ -6,7 +6,7 @@ metadata:
   labels:
     app: hospital-user
 spec:
-  type: ClusterIP
+  type: NodePort
   selector:
     app: hospital-user
   ports:
