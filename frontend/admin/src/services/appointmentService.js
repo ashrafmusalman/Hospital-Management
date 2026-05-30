@@ -3,8 +3,7 @@ import axios from "axios";
 // ── base instance ─────────────────────────────────────────────────────────
 // Adjust BASE_URL to wherever your FastAPI server runs.
 // Vite projects: set VITE_API_URL in .env  →  VITE_API_URL=http://localhost:8000
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
+const BASE_URL = import.meta.env.VITE_API_URL || "http://api.44.205.19.225.nip.io";
 const api = axios.create({
   baseURL: BASE_URL,
 });
