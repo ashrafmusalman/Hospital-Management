@@ -1,6 +1,6 @@
 pipeline {
     agent {
-        label "build"
+        label "built-agent"
     }
 
     environment {
@@ -60,6 +60,32 @@ pipeline {
             }
         }
 
+        stage("Update Manifest") {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: "githubPat",
+                    usernameVariable: "GIT_USER",
+                    passwordVariable: "GIT_PASS"
+                )]) {
+                    sh """
+                        git clone https://\${GIT_USER}:\${GIT_PASS}@github.com/ashrafmusalman/doctor-api.git repo
+                        cd repo
+
+                        sed -i 's|${DOCKER_USER}/hospital-backend:.*|${DOCKER_USER}/hospital-backend:${BUILD_NUMBER}|g' k8s/api/deployment.yaml
+                        sed -i 's|${DOCKER_USER}/hospital-admin:.*|${DOCKER_USER}/hospital-admin:${BUILD_NUMBER}|g' k8s/admin/deployment.yaml
+                        sed -i 's|${DOCKER_USER}/hospital-user:.*|${DOCKER_USER}/hospital-user:${BUILD_NUMBER}|g' k8s/user/deployment.yaml
+
+                        git config user.email "jenkins@ci.local"
+                        git config user.name "Jenkins CI"
+
+                        git add k8s/api/deployment.yaml k8s/admin/deployment.yaml k8s/user/deployment.yaml
+                        git diff --staged --quiet || git commit -m "ci: update image tags to build ${BUILD_NUMBER} [skip ci]"
+                        git push https://\${GIT_USER}:\${GIT_PASS}@github.com/ashrafmusalman/doctor-api.git HEAD:main
+                    """
+                }
+            }
+        }
+
     }
 
     post {
@@ -70,7 +96,10 @@ pipeline {
             echo "Pipeline failed at build ${BUILD_NUMBER}"
         }
         always {
-            sh 'docker logout || true'
+            sh """
+                docker logout || true
+                rm -rf repo || true
+            """
         }
     }
 }
