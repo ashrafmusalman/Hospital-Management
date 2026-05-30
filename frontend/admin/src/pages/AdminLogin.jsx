@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import API_BASE_URL from "../config";
 
 import "../styles/auth.css";
 
@@ -15,7 +16,6 @@ function AdminLogin() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // ALWAYS REQUIRE LOGIN
   useEffect(() => {
     localStorage.removeItem("token");
     localStorage.removeItem("admin");
@@ -30,25 +30,20 @@ function AdminLogin() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     setLoading(true);
     setMessage("");
 
     try {
-      // LOGIN API
       const response = await axios.post(
-        "http://127.0.0.1:8000/auth/login",
+        `${API_BASE_URL}/auth/login`,
         formData
       );
 
       const token = response.data.access_token;
-
-      // STORE TOKEN
       localStorage.setItem("token", token);
 
-      // GET CURRENT USER
       const userResponse = await axios.get(
-        "http://127.0.0.1:8000/auth/currentUser",
+        `${API_BASE_URL}/auth/currentUser`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -56,23 +51,16 @@ function AdminLogin() {
         }
       );
 
-      // CHECK ADMIN ROLE
       if (userResponse.data.role !== "admin") {
         setMessage("Access Denied");
         return;
       }
 
-      localStorage.setItem(
-        "admin",
-        JSON.stringify(userResponse.data)
-      );
-
+      localStorage.setItem("admin", JSON.stringify(userResponse.data));
       navigate("/dashboard");
 
     } catch (error) {
-      setMessage(
-        error.response?.data?.detail || "Login Failed"
-      );
+      setMessage(error.response?.data?.detail || "Login Failed");
     } finally {
       setLoading(false);
     }
@@ -81,12 +69,8 @@ function AdminLogin() {
   return (
     <div className="container">
       <form className="form-card" onSubmit={handleSubmit}>
-
         <h2>Hospital Admin</h2>
-
-        <p>
-          Secure access to futuristic medical dashboard
-        </p>
+        <p>Secure access to futuristic medical dashboard</p>
 
         <input
           type="email"
@@ -111,12 +95,7 @@ function AdminLogin() {
         </button>
 
         {message && (
-          <p
-            style={{
-              color: "#f87171",
-              marginTop: "10px",
-            }}
-          >
+          <p style={{ color: "#f87171", marginTop: "10px" }}>
             {message}
           </p>
         )}

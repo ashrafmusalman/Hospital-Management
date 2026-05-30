@@ -1,6 +1,7 @@
 import axios from "axios";
+import API_BASE_URL from "../config";
 
-const API = "http://127.0.0.1:8000/auth";
+const API = `${API_BASE_URL}/auth`;
 
 export const loginUser = async (data) => {
   return axios.post(`${API}/login`, data);

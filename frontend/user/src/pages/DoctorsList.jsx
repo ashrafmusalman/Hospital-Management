@@ -2,16 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import API from "../services/api";
-
+import API_BASE_URL from "../config";
 const GRAD = [
   ["#16a34a","#059669"],["#2563eb","#0ea5e9"],["#7c3aed","#a855f7"],
   ["#dc2626","#f97316"],["#0891b2","#06b6d4"],["#d97706","#f59e0b"],
   ["#be185d","#f43f5e"],["#0f766e","#14b8a6"],
 ];
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const API_BASE = API_BASE_URL;
 const getImg   = (p) => p ? `${API_BASE}/${String(p).split("/").map(encodeURIComponent).join("/")}` : null;
 const initials = (name="") => name.split(" ").slice(0,2).map(w=>w[0]).join("").toUpperCase();
+
 
 function DoctorsList() {
   const [query,            setQuery]            = useState("");

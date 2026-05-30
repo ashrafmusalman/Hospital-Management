@@ -3,7 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import API from "../services/api";
 import Navbar from "../components/Navbar";
 
-const API_BASE = "http://127.0.0.1:8000";
+import API_BASE_URL from "../config";
+const API_BASE = API_BASE_URL;
 const getImageUrl = (p) => {
   if (!p) return null;
   return `${API_BASE}/${String(p).split("/").map(encodeURIComponent).join("/")}`;

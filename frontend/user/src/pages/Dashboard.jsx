@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import HeroSlider from "../components/HeroSlider";
 import API from "../services/api";
+import API_BASE_URL from "../config";
 
 const HOSPITALS = [
   { name: "MediCare – Ahmedabad Main", img: "/image1.jpg", city: "Ahmedabad",  beds: "350+", tag: "NABH Accredited", est: "2005" },
@@ -26,8 +27,7 @@ const SPECIALITIES = [
   { icon:"🤖",  name:"Robotic Surgery",             desc:"Minimally invasive precision robotic procedures."  },
   { icon:"🫀",  name:"Solid Organ Transplantation", desc:"Kidney, liver & heart transplant expertise."       },
 ];
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+const API_BASE = API_BASE_URL;
 const getImg   = (p) => p ? `${API_BASE}/${String(p).split("/").map(encodeURIComponent).join("/")}` : null;
 const getInit  = (n="") => n.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
 
