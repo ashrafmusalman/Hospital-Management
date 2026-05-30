@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: hospital-admin
-          image: ashrafkhan0277/hospital-admin:113
+          image: ashrafkhan0277/hospital-admin:114
           imagePullPolicy: Always
           ports:
             - containerPort: 80
