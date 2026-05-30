@@ -1,93 +1,60 @@
 pipeline {
-    agent any
+    agent {
+        label "built-agent"
+    }
 
     environment {
         DOCKER_USER = "ashrafkhan0277"
-        BUILD_TAG   = "${BUILD_NUMBER}"
     }
 
     options {
-        buildDiscarder(logRotator(numToKeepStr: '5'))
+        buildDiscarder(logRotator(numToKeepStr: '1'))
         disableConcurrentBuilds()
         timeout(time: 20, unit: 'MINUTES')
-        timestamps()
     }
 
     stages {
 
-        stage("Build Images") {
+        stage("Checkout") {
+            steps {
+                git credentialsId: 'githubPat',
+                    url: 'https://github.com/ashrafmusalman/doctor-api.git',
+                    branch: 'main'
+            }
+        }
+
+        stage("Build") {
             parallel {
-                stage("Build Backend") {
+                stage("Backend") {
                     steps {
-                        sh """
-                            docker build \
-                                -t ${DOCKER_USER}/hospital-backend:${BUILD_TAG} \
-                                -t ${DOCKER_USER}/hospital-backend:latest \
-                                -f backend/Dockerfile backend/
-                        """
+                        sh "docker build -t ${DOCKER_USER}/hospital-backend:${BUILD_NUMBER} -f backend/Dockerfile backend/"
                     }
                 }
-                stage("Build Admin") {
+                stage("Admin") {
                     steps {
-                        sh """
-                            docker build \
-                                -t ${DOCKER_USER}/hospital-admin:${BUILD_TAG} \
-                                -t ${DOCKER_USER}/hospital-admin:latest \
-                                -f frontend/admin/Dockerfile frontend/admin/
-                        """
+                        sh "docker build -t ${DOCKER_USER}/hospital-admin:${BUILD_NUMBER} -f frontend/admin/Dockerfile frontend/admin/"
                     }
                 }
-                stage("Build User") {
+                stage("User") {
                     steps {
-                        sh """
-                            docker build \
-                                -t ${DOCKER_USER}/hospital-user:${BUILD_TAG} \
-                                -t ${DOCKER_USER}/hospital-user:latest \
-                                -f frontend/user/Dockerfile frontend/user/
-                        """
+                        sh "docker build -t ${DOCKER_USER}/hospital-user:${BUILD_NUMBER} -f frontend/user/Dockerfile frontend/user/"
                     }
                 }
             }
         }
 
-        stage("Push Images") {
+        stage("Push") {
             steps {
                 withCredentials([usernamePassword(
-                    credentialsId: "Jenkin-PAT",
+                    credentialsId: "dockerHubPat",
                     usernameVariable: "DOCKER_HUB_USER",
                     passwordVariable: "DOCKER_HUB_PASS"
                 )]) {
                     sh 'echo $DOCKER_HUB_PASS | docker login -u $DOCKER_HUB_USER --password-stdin'
-                }
-                sh """
-                    docker push ${DOCKER_USER}/hospital-backend:${BUILD_TAG}
-                    docker push ${DOCKER_USER}/hospital-backend:latest
-                    docker push ${DOCKER_USER}/hospital-admin:${BUILD_TAG}
-                    docker push ${DOCKER_USER}/hospital-admin:latest
-                    docker push ${DOCKER_USER}/hospital-user:${BUILD_TAG}
-                    docker push ${DOCKER_USER}/hospital-user:latest
-                """
-            }
-        }
-
-        stage("Update Image Tags in Git") {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: "github-pat",
-                    usernameVariable: "GIT_USER",
-                    passwordVariable: "GIT_PASS"
-                )]) {
                     sh """
-                        git fetch https://\${GIT_USER}:\${GIT_PASS}@github.com/ashrafmusalman/doctor-api.git main
-                        git checkout FETCH_HEAD
-                        sed -i 's|${DOCKER_USER}/hospital-backend:.*|${DOCKER_USER}/hospital-backend:${BUILD_TAG}|g' k8s/api/deployment.yaml
-                        sed -i 's|${DOCKER_USER}/hospital-admin:.*|${DOCKER_USER}/hospital-admin:${BUILD_TAG}|g' k8s/admin/deployment.yaml
-                        sed -i 's|${DOCKER_USER}/hospital-user:.*|${DOCKER_USER}/hospital-user:${BUILD_TAG}|g' k8s/user/deployment.yaml
-                        git config user.email "jenkins@ci.local"
-                        git config user.name "Jenkins CI"
-                        git add k8s/api/deployment.yaml k8s/admin/deployment.yaml k8s/user/deployment.yaml
-                        git diff --staged --quiet || git commit -m "ci: update image tags to build ${BUILD_TAG} [skip ci]"
-                        git push https://\${GIT_USER}:\${GIT_PASS}@github.com/ashrafmusalman/doctor-api.git HEAD:main
+                        docker push ${DOCKER_USER}/hospital-backend:${BUILD_NUMBER}
+                        docker push ${DOCKER_USER}/hospital-admin:${BUILD_NUMBER}
+                        docker push ${DOCKER_USER}/hospital-user:${BUILD_NUMBER}
                     """
                 }
             }
@@ -97,16 +64,13 @@ pipeline {
 
     post {
         success {
-            echo "CI complete — Build ${BUILD_TAG} pushed. ArgoCD will deploy automatically."
+            echo "Build ${BUILD_NUMBER} pushed to Docker Hub successfully"
         }
         failure {
-            echo "Pipeline FAILED — Build ${BUILD_TAG}"
+            echo "Pipeline failed at build ${BUILD_NUMBER}"
         }
         always {
-            sh """
-                docker logout || true
-                docker image prune -f || true
-            """
+            sh 'docker logout || true'
         }
     }
 }
