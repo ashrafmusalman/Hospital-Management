@@ -29,7 +29,7 @@ spec:
               echo "DB is ready"
       containers:
         - name: hospital-api
-          image: ashrafkhan0277/hospital-backend:46
+          image: ashrafkhan0277/hospital-backend:47
           imagePullPolicy: Always
           ports:
             - containerPort: 8000
