@@ -7,6 +7,7 @@ metadata:
     app.kubernetes.io/part-of: hospital
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: web
+    traefik.ingress.kubernetes.io/router.middlewares: hospital-cors@kubernetescrd
 spec:
   ingressClassName: traefik
   rules:
