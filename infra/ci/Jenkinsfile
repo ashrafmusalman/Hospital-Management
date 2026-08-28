@@ -213,7 +213,7 @@ pipeline {
         }
 
         // Step 7: this is the step that actually causes a deployment.
-        // It edits the image tag in the k8s manifests and pushes that
+        // It edits the image tagddd in the k8s manifests and pushes that
         // change to Git — ArgoCD is watching this repo and will pick up
         // the new tag and roll it out to the cluster automatically.
         stage("Update Manifest") {
