@@ -1,0 +1,6 @@
+# CVE-2024-23342 — python-ecdsa "Minerva" timing side-channel attack.
+# Upstream (python-ecdsa) has stated they will not fix this: it requires
+# constant-time arithmetic that the pure-Python implementation doesn't
+# provide. Pulled in transitively via python-jose[cryptography]. No fixed
+# version exists to upgrade to, so this is accepted as a known risk.
+CVE-2024-23342

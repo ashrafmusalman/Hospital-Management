@@ -143,8 +143,10 @@ pipeline {
                     steps {
                         sh """
                             docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+                                -v ${WORKSPACE}:/workspace:ro \
                                 aquasec/trivy:latest image \
                                 --severity HIGH,CRITICAL --exit-code 1 --no-progress \
+                                --ignorefile /workspace/.trivyignore \
                                 ${DOCKER_USER}/hospital-backend:${BUILD_NUMBER}
                         """
                     }
@@ -153,8 +155,10 @@ pipeline {
                     steps {
                         sh """
                             docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+                                -v ${WORKSPACE}:/workspace:ro \
                                 aquasec/trivy:latest image \
                                 --severity HIGH,CRITICAL --exit-code 1 --no-progress \
+                                --ignorefile /workspace/.trivyignore \
                                 ${DOCKER_USER}/hospital-admin:${BUILD_NUMBER}
                         """
                     }
@@ -163,8 +167,10 @@ pipeline {
                     steps {
                         sh """
                             docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+                                -v ${WORKSPACE}:/workspace:ro \
                                 aquasec/trivy:latest image \
                                 --severity HIGH,CRITICAL --exit-code 1 --no-progress \
+                                --ignorefile /workspace/.trivyignore \
                                 ${DOCKER_USER}/hospital-user:${BUILD_NUMBER}
                         """
                     }
