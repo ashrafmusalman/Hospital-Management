@@ -22,7 +22,7 @@ spec:
   ingressClassName: nginx
 
   rules:
-    - host: api.hospital.local
+    - host: api.100-59-43-37.nip.io
       http:
         paths:
           - path: /

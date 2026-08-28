@@ -20,7 +20,7 @@ pipeline {
                description: 'Branch to build and push manifest updates to')
         string(name: 'DOCKER_USER', defaultValue: 'ashrafkhan0277',
                description: 'Docker Hub namespace to push images to')
-        string(name: 'VITE_API_URL', defaultValue: 'http://api.hospital.local',
+        string(name: 'VITE_API_URL', defaultValue: 'http://api.100-59-43-37.nip.io',
                description: 'Backend URL baked into the admin/user frontend builds at build time')
     }
 

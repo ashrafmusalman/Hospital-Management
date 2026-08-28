@@ -39,16 +39,17 @@ spec:
           port: 8000
 
   egress:
-    - to:
-        - podSelector:
-            matchLabels:
-              app: hospital-db
+    - to:   # The database is RDS now, not an in-cluster pod — reached over
+            # the VPC's private subnets (10.0.2.0/24, 10.0.3.0/24), not a
+            # podSelector
+        - ipBlock:
+            cidr: 10.0.2.0/23
       ports:
         - protocol: TCP
           port: 5432
 
-    - ports:   # Let DNS lookups through, so the pod can find 'postgres'
-               # by name (the wait-for-db startup step needs this too)
+    - ports:   # Let DNS lookups through, so the pod can resolve the RDS
+               # hostname (the wait-for-db startup step needs this too)
         - protocol: UDP
           port: 53
         - protocol: TCP

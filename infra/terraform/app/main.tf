@@ -18,7 +18,7 @@ module "rds" {
 
   db_name     = "hospital"
   db_user     = "postgres"
-  db_password = "postgres123" # temp (Vault later)
+  db_password = "postgres123"
 }
 
 #########################################

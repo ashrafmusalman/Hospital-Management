@@ -11,7 +11,7 @@ metadata:
 data:
   NODE_ENV: "production"
   PORT: "8000"
-  DB_HOST: "postgres"
+  DB_HOST: "hospital-postgres-db.c0pkk0aiyvzm.us-east-1.rds.amazonaws.com"
   DB_PORT: "5432"
-  DB_NAME: "hospital_db"
-  API_BASE_URL: "http://api.hospital.local"
+  DB_NAME: "hospital"
+  API_BASE_URL: "http://api.100-59-43-37.nip.io"
