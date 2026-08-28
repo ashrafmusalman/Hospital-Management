@@ -13,9 +13,13 @@ WORKDIR /app
 # Copy dependencies
 COPY requirements.txt .
 
-# Install dependencies
+# Install dependencies, then upgrade pip's own toolchain again last —
+# some packages in requirements.txt pull in an older setuptools/wheel as
+# a transitive dependency, which would otherwise downgrade the earlier
+# upgrade and reintroduce CVEs from setuptools' bundled _vendor copies.
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
-    && pip install --no-cache-dir -r requirements.txt
+    && pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir --upgrade pip setuptools wheel
 
 # Copy application code
 COPY . .
