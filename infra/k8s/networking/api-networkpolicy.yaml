@@ -22,7 +22,7 @@ spec:
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: ingress-nginx
+              kubernetes.io/metadata.name: kube-system   # k3s's built-in Traefik lives here, not a separate ingress-nginx namespace
       ports:
         - protocol: TCP
           port: 8000
