@@ -118,29 +118,3 @@ resource "aws_security_group" "vault_sg" {
     Name = "hospital-vault-sg"
   }
 }
-
-
-resource "aws_security_group" "bastion_sg" {
-
-  name   = "hospital-bastion-sg"
-  vpc_id = var.vpc_id
-
-  ingress {
-    description = "SSH from admin"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = [var.bastion_allowed_cidr]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "hospital-bastion-sg"
-  }
-}

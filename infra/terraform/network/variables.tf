@@ -32,8 +32,3 @@ variable "private_subnet_2_az" {
   description = "AZ for second private subnet"
   type        = string
 }
-
-variable "bastion_allowed_cidr" {
-  description = "CIDR allowed to SSH into the bastion host — set this to your own IP as x.x.x.x/32, not 0.0.0.0/0"
-  type        = string
-}

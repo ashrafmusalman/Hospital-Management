@@ -26,7 +26,3 @@ output "private_subnet_2_id" {
 output "rds_security_group_id" {
   value = module.security_groups.rds_security_group_id
 }
-
-output "bastion_security_group_id" {
-  value = module.security_groups.bastion_security_group_id
-}
