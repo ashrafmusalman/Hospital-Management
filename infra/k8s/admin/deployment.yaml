@@ -25,7 +25,7 @@ spec:
           # Auto-updated on every push to main by infra/ci/Jenkinsfile — don't
           # hand-edit this tag; if deploying manually, check Docker Hub for
           # the actual latest tag first.
-          image: ashrafkhan0277/hospital-admin:156
+          image: ashrafkhan0277/hospital-admin:6
           imagePullPolicy: Always
 
           ports:
