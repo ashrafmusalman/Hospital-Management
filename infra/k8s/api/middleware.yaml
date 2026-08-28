@@ -1,0 +1,29 @@
+# CORS for the API, as a Traefik Middleware (this cluster runs k3s's
+# built-in Traefik ingress controller, not nginx-ingress). Referenced from
+# api/ingress.yaml via the traefik.ingress.kubernetes.io/router.middlewares
+# annotation.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: cors
+  namespace: hospital
+spec:
+  headers:
+    accessControlAllowMethods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+      - PATCH
+    accessControlAllowHeaders:
+      - "Authorization"
+      - "Content-Type"
+      - "Accept"
+    accessControlAllowOriginList:
+      - "http://admin.100-59-43-37.nip.io"
+      - "http://hospital.100-59-43-37.nip.io"
+      - "http://api.100-59-43-37.nip.io"
+    accessControlAllowCredentials: true
+    accessControlMaxAge: 3600
+    addVaryHeader: true

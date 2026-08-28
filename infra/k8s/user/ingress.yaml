@@ -9,10 +9,10 @@ metadata:
   labels:
     app.kubernetes.io/part-of: hospital
   annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"   # set to "true" once TLS is configured
+    traefik.ingress.kubernetes.io/router.entrypoints: web
 
 spec:
-  ingressClassName: nginx
+  ingressClassName: traefik
 
   rules:
     - host: hospital.100-59-43-37.nip.io

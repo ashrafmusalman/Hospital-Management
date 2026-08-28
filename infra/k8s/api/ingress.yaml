@@ -1,6 +1,7 @@
 # This opens a door so people outside the cluster can reach the backend
-# at api.hospital.local. It also adds special permission headers (CORS)
-# so a browser is allowed to call the backend from the admin and user sites.
+# at api.hospital.local. CORS (letting the admin/user sites call the API)
+# is handled by the Traefik Middleware in middleware.yaml, referenced below
+# — this cluster runs k3s's built-in Traefik ingress controller, not nginx.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -9,17 +10,11 @@ metadata:
   labels:
     app.kubernetes.io/part-of: hospital
   annotations:
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"   # set to "true" once TLS is configured
-
-    # CORS is switched on here (not in a separate Traefik file anymore),
-    # so the admin and user websites are allowed to call the API.
-    nginx.ingress.kubernetes.io/enable-cors: "true"
-    nginx.ingress.kubernetes.io/cors-allow-origin: "*"        # restrict in production
-    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-    nginx.ingress.kubernetes.io/cors-allow-headers: "Authorization, Content-Type, Accept"
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+    traefik.ingress.kubernetes.io/router.middlewares: hospital-cors@kubernetescrd
 
 spec:
-  ingressClassName: nginx
+  ingressClassName: traefik
 
   rules:
     - host: api.100-59-43-37.nip.io
