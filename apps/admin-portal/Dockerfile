@@ -13,6 +13,8 @@ RUN npm run build
 
 FROM nginx:alpine
 
+RUN apk update && apk upgrade --no-cache
+
 RUN mkdir -p /var/cache/nginx/client_temp \
              /var/cache/nginx/proxy_temp \
              /var/cache/nginx/fastcgi_temp \
