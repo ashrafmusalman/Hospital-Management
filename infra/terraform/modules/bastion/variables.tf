@@ -1,0 +1,27 @@
+variable "ami_id" {
+  type = string
+}
+
+variable "instance_type" {
+  type = string
+}
+
+variable "subnet_id" {
+  type = string
+}
+
+variable "sg_id" {
+  type = string
+}
+
+variable "volume" {
+  type = number
+}
+
+variable "name" {
+  type = string
+}
+
+variable "key_name" {
+  type = string
+}

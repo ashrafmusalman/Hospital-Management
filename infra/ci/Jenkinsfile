@@ -1,0 +1,252 @@
+// This is the build pipeline for the hospital project. Every time it runs,
+// it does six things in order: build the 3 Docker images, prove the backend
+// actually works, scan all 3 images for known security vulnerabilities,
+// publish them to Docker Hub, wait for a human to say "go ahead," and only
+// then update the Kubernetes manifests that ArgoCD watches (which is the
+// step that actually causes something to change in the running cluster).
+pipeline {
+    agent {
+        label "build"
+    }
+
+    // Everything environment-specific lives here as a parameter with the
+    // current real value as its default — override at run time instead of
+    // editing this file, so the pipeline isn't hardcoded to one person's
+    // GitHub account, Docker Hub namespace, or deployment host.
+    parameters {
+        string(name: 'GIT_REPO', defaultValue: 'github.com/ashrafmusalman/doctor-api.git',
+               description: 'Git repo (host/path, no scheme) to build from and write manifest updates back to')
+        string(name: 'GIT_BRANCH', defaultValue: 'main',
+               description: 'Branch to build and push manifest updates to')
+        string(name: 'DOCKER_USER', defaultValue: 'ashrafkhan0277',
+               description: 'Docker Hub namespace to push images to')
+        string(name: 'VITE_API_URL', defaultValue: 'http://api.hospital.local',
+               description: 'Backend URL baked into the admin/user frontend builds at build time')
+    }
+
+    environment {
+        GIT_REPO     = "${params.GIT_REPO}"
+        GIT_BRANCH   = "${params.GIT_BRANCH}"
+        DOCKER_USER  = "${params.DOCKER_USER}"
+        VITE_API_URL = "${params.VITE_API_URL}"
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '1'))
+        disableConcurrentBuilds()
+        // Wide on purpose: this covers the whole run, including the manual
+        // approval stage below, where the pipeline just sits and waits for
+        // a person to click a button. A tight timeout here would auto-kill
+        // the build while it's waiting for nothing but a human.
+        timeout(time: 24, unit: 'HOURS')
+    }
+
+    stages {
+
+        // Step 1: grab the exact commit that triggered this build.
+        stage("Checkout") {
+            steps {
+                git credentialsId: 'githubPat',
+                    url: "https://${GIT_REPO}",
+                    branch: "${GIT_BRANCH}"
+            }
+        }
+
+        // Step 2: turn the source code into 3 Docker images (backend,
+        // admin panel, patient portal), all at once since they don't
+        // depend on each other.
+        stage("Build") {
+            parallel {
+                stage("Backend") {
+                    steps {
+                        sh "docker build -t ${DOCKER_USER}/hospital-backend:${BUILD_NUMBER} -f apps/backend/Dockerfile apps/backend/"
+                    }
+                }
+                stage("Admin") {
+                    steps {
+                        sh """
+                            docker build \
+                                --build-arg VITE_API_URL=${VITE_API_URL} \
+                                -t ${DOCKER_USER}/hospital-admin:${BUILD_NUMBER} \
+                                -f apps/admin-portal/Dockerfile apps/admin-portal/
+                        """
+                    }
+                }
+                stage("User") {
+                    steps {
+                        sh """
+                            docker build \
+                                --build-arg VITE_API_URL=${VITE_API_URL} \
+                                -t ${DOCKER_USER}/hospital-user:${BUILD_NUMBER} \
+                                -f apps/patient-portal/Dockerfile apps/patient-portal/
+                        """
+                    }
+                }
+            }
+        }
+
+        // Step 3: prove the backend image actually works, not just that it
+        // built. The frontend builds already run "npm run build" inside
+        // themselves, so a broken admin/user build fails loudly right
+        // there — the backend has no equivalent, since its Docker build
+        // only installs dependencies and copies files, it never runs the
+        // app. So here we boot the image we just built next to a throwaway
+        // Postgres and check that /health comes back healthy. If it
+        // doesn't, this stage fails and nothing gets published.
+        stage("Test") {
+            steps {
+                sh """
+                    docker network create ci-net-${BUILD_NUMBER}
+
+                    docker run -d --name ci-db-${BUILD_NUMBER} --network ci-net-${BUILD_NUMBER} \
+                        -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=hospital_ci \
+                        postgres:16-alpine
+
+                    for i in \$(seq 1 15); do
+                        docker exec ci-db-${BUILD_NUMBER} pg_isready -U postgres && break
+                        sleep 2
+                    done
+
+                    docker run -d --name ci-backend-${BUILD_NUMBER} --network ci-net-${BUILD_NUMBER} \
+                        -e DB_HOST=ci-db-${BUILD_NUMBER} -e DB_PORT=5432 -e DB_NAME=hospital_ci \
+                        -e DB_USER=postgres -e DB_PASSWORD=postgres -e SECRET_KEY=ci-smoke-test \
+                        ${DOCKER_USER}/hospital-backend:${BUILD_NUMBER}
+
+                    sleep 5
+
+                    docker exec ci-backend-${BUILD_NUMBER} python -c "import urllib.request as u; assert u.urlopen('http://localhost:8000/health').status == 200" \
+                        || (echo '--- backend logs ---'; docker logs ci-backend-${BUILD_NUMBER}; exit 1)
+                """
+            }
+            post {
+                // Clean up the throwaway containers whether the test
+                // passed or failed, so nothing is left running on the
+                // build agent.
+                always {
+                    sh """
+                        docker rm -f ci-backend-${BUILD_NUMBER} ci-db-${BUILD_NUMBER} || true
+                        docker network rm ci-net-${BUILD_NUMBER} || true
+                    """
+                }
+            }
+        }
+
+        // Step 4: check all 3 images for known security vulnerabilities
+        // (CVEs) using Trivy, before any of them get published anywhere.
+        // Each scan fails the build if it finds a HIGH or CRITICAL issue —
+        // in the base OS packages, language dependencies, or anything else
+        // baked into the image. Catching this here means a vulnerable
+        // image never reaches Docker Hub in the first place.
+        stage("Scan") {
+            parallel {
+                stage("Backend") {
+                    steps {
+                        sh """
+                            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+                                aquasec/trivy:latest image \
+                                --severity HIGH,CRITICAL --exit-code 1 --no-progress \
+                                ${DOCKER_USER}/hospital-backend:${BUILD_NUMBER}
+                        """
+                    }
+                }
+                stage("Admin") {
+                    steps {
+                        sh """
+                            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+                                aquasec/trivy:latest image \
+                                --severity HIGH,CRITICAL --exit-code 1 --no-progress \
+                                ${DOCKER_USER}/hospital-admin:${BUILD_NUMBER}
+                        """
+                    }
+                }
+                stage("User") {
+                    steps {
+                        sh """
+                            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+                                aquasec/trivy:latest image \
+                                --severity HIGH,CRITICAL --exit-code 1 --no-progress \
+                                ${DOCKER_USER}/hospital-user:${BUILD_NUMBER}
+                        """
+                    }
+                }
+            }
+        }
+
+        // Step 5: now that the images are built, tested, and scanned
+        // clean, publish all 3 to Docker Hub under this build's number.
+        stage("Push") {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: "dockerHubPat",
+                    usernameVariable: "DOCKER_HUB_USER",
+                    passwordVariable: "DOCKER_HUB_PASS"
+                )]) {
+                    sh 'echo $DOCKER_HUB_PASS | docker login -u $DOCKER_HUB_USER --password-stdin'
+                    sh """
+                        docker push ${DOCKER_USER}/hospital-backend:${BUILD_NUMBER}
+                        docker push ${DOCKER_USER}/hospital-admin:${BUILD_NUMBER}
+                        docker push ${DOCKER_USER}/hospital-user:${BUILD_NUMBER}
+                    """
+                }
+            }
+        }
+
+        // Step 6: stop and wait for a person to approve the deploy. Nothing
+        // before this point touches the cluster — build, test, scan, and
+        // push are all safe to do automatically. Actually rolling this out
+        // is the one step with real consequences, so it needs a human to
+        // look at the build and deliberately click "Deploy" before the
+        // pipeline is allowed to continue.
+        stage("Approval") {
+            steps {
+                input message: "Deploy build ${BUILD_NUMBER} to the hospital namespace?", ok: "Deploy"
+            }
+        }
+
+        // Step 7: this is the step that actually causes a deployment.
+        // It edits the image tag in the k8s manifests and pushes that
+        // change to Git — ArgoCD is watching this repo and will pick up
+        // the new tag and roll it out to the cluster automatically.
+        stage("Update Manifest") {
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: "githubPat",
+                    usernameVariable: "GIT_USER",
+                    passwordVariable: "GIT_PASS"
+                )]) {
+                    sh """
+                        git clone https://\${GIT_USER}:\${GIT_PASS}@${GIT_REPO} repo
+                        cd repo
+                        sed -i 's|${DOCKER_USER}/hospital-backend:.*|${DOCKER_USER}/hospital-backend:${BUILD_NUMBER}|g' infra/k8s/api/deployment.yaml
+                        sed -i 's|${DOCKER_USER}/hospital-admin:.*|${DOCKER_USER}/hospital-admin:${BUILD_NUMBER}|g' infra/k8s/admin/deployment.yaml
+                        sed -i 's|${DOCKER_USER}/hospital-user:.*|${DOCKER_USER}/hospital-user:${BUILD_NUMBER}|g' infra/k8s/user/deployment.yaml
+                        git config user.email "jenkins@ci.local"
+                        git config user.name "Jenkins CI"
+                        git add infra/k8s/api/deployment.yaml infra/k8s/admin/deployment.yaml infra/k8s/user/deployment.yaml
+                        git diff --staged --quiet || git commit -m "ci: update image tags to build ${BUILD_NUMBER} [skip ci]"
+                        git push https://\${GIT_USER}:\${GIT_PASS}@${GIT_REPO} HEAD:${GIT_BRANCH}
+                    """
+                }
+            }
+        }
+
+    }
+
+    post {
+        success {
+            echo "Build ${BUILD_NUMBER} approved and deployed successfully"
+        }
+        failure {
+            echo "Pipeline failed or was not approved at build ${BUILD_NUMBER}"
+        }
+        always {
+            // Always log out of Docker Hub and remove the cloned manifest
+            // repo copy, so nothing sensitive or stale is left on disk
+            // between runs.
+            sh """
+                docker logout || true
+                rm -rf repo || true
+            """
+        }
+    }
+}

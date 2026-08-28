@@ -1,0 +1,66 @@
+# This starts the patient portal website (where patients log in).
+# It's just built HTML/CSS/JS files, served up by nginx.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hospital-user
+  namespace: hospital
+  labels:
+    app: hospital-user
+
+spec:
+  replicas: 2   # stateless — safe to run more than one for redundancy
+
+  selector:
+    matchLabels:
+      app: hospital-user
+
+  template:
+    metadata:
+      labels:
+        app: hospital-user
+    spec:
+      serviceAccountName: hospital-user-sa
+      containers:
+        - name: hospital-user
+          # Auto-updated on every push to main by infra/ci/Jenkinsfile — don't
+          # hand-edit this tag; if deploying manually, check Docker Hub for
+          # the actual latest tag first.
+          image: ashrafkhan0277/hospital-user:156
+          imagePullPolicy: Always
+
+          ports:
+            - containerPort: 80
+
+          env:
+            - name: API_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: hospital-config
+                  key: API_BASE_URL
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"

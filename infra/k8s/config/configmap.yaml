@@ -1,0 +1,17 @@
+# This is a box of settings that are safe to see (nothing secret inside).
+# The api, admin, and user apps all read from this box to learn things
+# like the database name, database port, and the API's public address.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hospital-config
+  namespace: hospital
+  labels:
+    app.kubernetes.io/part-of: hospital
+data:
+  NODE_ENV: "production"
+  PORT: "8000"
+  DB_HOST: "postgres"
+  DB_PORT: "5432"
+  DB_NAME: "hospital_db"
+  API_BASE_URL: "http://api.hospital.local"

@@ -1,0 +1,9 @@
+# This makes a folder called "hospital" inside Kubernetes.
+# Every piece of our app (api, admin, user, database, monitoring) lives
+# inside this folder, away from other apps in the cluster.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hospital
+  labels:
+    app.kubernetes.io/part-of: hospital

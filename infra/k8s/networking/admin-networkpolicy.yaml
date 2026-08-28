@@ -1,0 +1,46 @@
+# This is a safety rule (like a firewall) for the admin panel.
+# It only lets traffic IN from the ingress (the front door), and it
+# only lets the admin pod talk OUT to the backend (api) and to DNS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: admin-allow-ingress-only
+  namespace: hospital
+  labels:
+    app.kubernetes.io/part-of: hospital
+spec:
+  podSelector:
+    matchLabels:
+      app: hospital-admin
+
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 80
+
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: hospital-api
+      ports:
+        - protocol: TCP
+          port: 8000
+
+    - ports:   # Let DNS lookups through, so the pod can find
+               # 'hospital-api-svc' by name
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+  # Everything else is blocked by default: admin can't reach the DB or the
+  # internet, and nothing but the ingress controller can reach admin.

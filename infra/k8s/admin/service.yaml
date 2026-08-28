@@ -1,0 +1,18 @@
+# This gives the admin panel one steady address inside the cluster.
+# The ingress (below, in another file) sends traffic to this address.
+apiVersion: v1
+kind: Service
+metadata:
+  name: hospital-admin-svc
+  namespace: hospital
+  labels:
+    app: hospital-admin
+spec:
+  type: ClusterIP
+  selector:
+    app: hospital-admin
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP

@@ -1,0 +1,112 @@
+# This starts the backend app (FastAPI). It is the only part of our system
+# that is allowed to talk to the database.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hospital-api
+  namespace: hospital
+  labels:
+    app: hospital-api
+spec:
+  replicas: 2   # stateless — safe to run more than one for redundancy
+
+  selector:
+    matchLabels:
+      app: hospital-api
+
+  template:
+    metadata:
+      labels:
+        app: hospital-api
+    spec:
+      serviceAccountName: hospital-api-sa
+
+      # This waits until the database is ready to accept connections
+      # before the API starts, so the API doesn't crash trying to
+      # connect too early.
+      initContainers:
+        - name: wait-for-db
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z postgres 5432; do
+                echo "Waiting for DB..."
+                sleep 3
+              done
+
+      containers:
+        - name: hospital-api
+          # Auto-updated on every push to main by infra/ci/Jenkinsfile — don't
+          # hand-edit this tag; if deploying manually, check Docker Hub for
+          # the actual latest tag first.
+          image: ashrafkhan0277/hospital-backend:156
+          imagePullPolicy: Always
+
+          ports:
+            - containerPort: 8000
+
+          envFrom:
+            - configMapRef:
+                name: hospital-config
+
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: hospital-secrets
+                  key: POSTGRES_USER
+
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hospital-secrets
+                  key: POSTGRES_PASSWORD
+
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: hospital-secrets
+                  key: POSTGRES_DB
+
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hospital-secrets
+                  key: SECRET_KEY
+
+            - name: DATABASE_URL
+              value: "postgresql://$(DB_USER):$(DB_PASSWORD)@postgres:5432/$(DB_NAME)"
+
+          # This check only makes sure the API process itself is still alive.
+          # It does NOT check /health on purpose — /health also checks the
+          # database, and we don't want a short database problem to also
+          # restart the API pod (that would not fix the database anyway).
+          livenessProbe:
+            tcpSocket:
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          # This check uses /health, which also checks the database.
+          # If the database can't be reached, this pod stops receiving
+          # traffic until it can.
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

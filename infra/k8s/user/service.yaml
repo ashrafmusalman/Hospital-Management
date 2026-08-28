@@ -1,0 +1,19 @@
+# This gives the patient portal one steady address inside the cluster.
+# The ingress (below, in another file) sends traffic to this address.
+apiVersion: v1
+kind: Service
+metadata:
+  name: hospital-user-svc
+  namespace: hospital
+  labels:
+    app: hospital-user
+
+spec:
+  type: ClusterIP
+  selector:
+    app: hospital-user
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 80

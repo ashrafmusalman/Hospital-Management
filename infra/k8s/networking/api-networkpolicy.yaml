@@ -1,0 +1,58 @@
+# This is a safety rule (like a firewall) for the backend.
+# It only lets traffic IN from the ingress and from the admin/user
+# websites, and it only lets the backend talk OUT to the database
+# and to DNS.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-allow-ingress-and-frontend
+  namespace: hospital
+  labels:
+    app.kubernetes.io/part-of: hospital
+spec:
+  podSelector:
+    matchLabels:
+      app: hospital-api
+
+  policyTypes:
+    - Ingress
+    - Egress
+
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8000
+
+    - from:   # Let the admin and user pods call the backend directly
+        - podSelector:
+            matchLabels:
+              app: hospital-admin
+        - podSelector:
+            matchLabels:
+              app: hospital-user
+      ports:
+        - protocol: TCP
+          port: 8000
+
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: hospital-db
+      ports:
+        - protocol: TCP
+          port: 5432
+
+    - ports:   # Let DNS lookups through, so the pod can find 'postgres'
+               # by name (the wait-for-db startup step needs this too)
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+  # Everything else is blocked by default: the API has no internet egress
+  # and never initiates calls to either frontend.

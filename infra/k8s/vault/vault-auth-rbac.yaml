@@ -1,0 +1,24 @@
+# Vault's kubernetes auth method needs to call the cluster's TokenReview
+# API to check whether a ServiceAccount token presented to it (by
+# hospital-api-sa, via the VaultAuth CR) is genuine. This ServiceAccount is
+# what gives Vault permission to make that call — its token is handed to
+# Vault once, as token_reviewer_jwt in infra/terraform/vault-config, not
+# used by anything else.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vault-auth
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vault-auth-token-review
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: vault-auth
+    namespace: kube-system

@@ -1,0 +1,17 @@
+# Tells the operator how to log in to Vault on hospital-api's behalf:
+# present hospital-api-sa's own token to Vault's kubernetes auth method,
+# under the "hospital-api" role (see vault_kubernetes_auth_backend_role in
+# infra/terraform/vault-config) — that role is what limits it to reading
+# only secret/data/hospital.
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultAuth
+metadata:
+  name: hospital-vault-auth
+  namespace: hospital
+spec:
+  vaultConnectionRef: vault-connection
+  method: kubernetes
+  mount: kubernetes
+  kubernetes:
+    role: hospital-api
+    serviceAccount: hospital-api-sa

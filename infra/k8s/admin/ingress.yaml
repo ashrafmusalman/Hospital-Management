@@ -1,0 +1,26 @@
+# This opens a door so people outside the cluster can open the admin
+# panel in their browser, at admin.hospital.local.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hospital-admin-ingress
+  namespace: hospital
+  labels:
+    app.kubernetes.io/part-of: hospital
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"   # set to "true" once TLS is configured
+
+spec:
+  ingressClassName: nginx
+
+  rules:
+    - host: admin.hospital.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hospital-admin-svc
+                port:
+                  number: 80

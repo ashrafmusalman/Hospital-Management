@@ -1,0 +1,17 @@
+# This is a storage disk for the database's data. The data stays safe
+# even if the database pod restarts or gets moved to another machine.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hospital-db-pvc
+  namespace: hospital
+  labels:
+    app: hospital-db
+
+spec:
+  accessModes:
+    - ReadWriteOnce   # Only one database pod can use this disk at a time
+
+  resources:
+    requests:
+      storage: 5Gi

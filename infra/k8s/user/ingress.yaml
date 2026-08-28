@@ -1,0 +1,27 @@
+# This opens a door so people outside the cluster can open the patient
+# portal at hospital.local. It uses the plain main address because this
+# is the public website everyone visits first.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hospital-user-ingress
+  namespace: hospital
+  labels:
+    app.kubernetes.io/part-of: hospital
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"   # set to "true" once TLS is configured
+
+spec:
+  ingressClassName: nginx
+
+  rules:
+    - host: hospital.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hospital-user-svc
+                port:
+                  number: 80

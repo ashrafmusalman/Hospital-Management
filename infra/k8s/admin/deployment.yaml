@@ -1,0 +1,65 @@
+# This starts the admin panel website. It's just built HTML/CSS/JS
+# files, served up by nginx.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hospital-admin
+  namespace: hospital
+  labels:
+    app: hospital-admin
+spec:
+  replicas: 2   # stateless — safe to run more than one for redundancy
+
+  selector:
+    matchLabels:
+      app: hospital-admin
+
+  template:
+    metadata:
+      labels:
+        app: hospital-admin
+    spec:
+      serviceAccountName: hospital-admin-sa
+      containers:
+        - name: hospital-admin
+          # Auto-updated on every push to main by infra/ci/Jenkinsfile — don't
+          # hand-edit this tag; if deploying manually, check Docker Hub for
+          # the actual latest tag first.
+          image: ashrafkhan0277/hospital-admin:156
+          imagePullPolicy: Always
+
+          ports:
+            - containerPort: 80
+
+          env:
+            - name: API_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: hospital-config
+                  key: API_BASE_URL
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"

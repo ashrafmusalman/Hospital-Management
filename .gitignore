@@ -52,6 +52,9 @@ env/
 
 .DS_Store
 Thumbs.db
+desktop.ini
+Icon.ico
+.hidden
 
 # ----------------------
 
@@ -85,8 +88,8 @@ docker-compose.override.yml
 
 # ----------------------
 
-secrets/
-vault/
+/secrets/
+/vault/
 
 # ----------------------
 

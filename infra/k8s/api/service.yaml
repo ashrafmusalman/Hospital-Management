@@ -1,0 +1,19 @@
+# This gives the backend one steady address inside the cluster.
+# The ingress and the admin/user apps use this address to reach the
+# backend — they never use a pod's own changing IP address.
+apiVersion: v1
+kind: Service
+metadata:
+  name: hospital-api-svc
+  namespace: hospital
+  labels:
+    app: hospital-api
+spec:
+  type: ClusterIP
+  selector:
+    app: hospital-api
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8000
+      targetPort: 8000

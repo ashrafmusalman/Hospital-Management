@@ -19,7 +19,7 @@ services:
       retries: 5
 
   backend:
-    build: ./backend
+    build: ./apps/backend
     image: ashrafkhan0277/hospital-api:1.0
     container_name: hospital_backend
     ports:
@@ -28,11 +28,14 @@ services:
       postgres:
         condition: service_healthy
     env_file:
-      - ./backend/.env.local
+      - ./apps/backend/.env.local
     restart: always
 
   admin:
-    build: ./frontend/admin
+    build:
+      context: ./apps/admin-portal
+      args:
+        VITE_API_URL: http://localhost:8000
     image: ashrafkhan0277/hospital-admin:1.0
     container_name: hospital_admin_frontend
     ports:
@@ -42,7 +45,10 @@ services:
     restart: always
 
   user:
-    build: ./frontend/user
+    build:
+      context: ./apps/patient-portal
+      args:
+        VITE_API_URL: http://localhost:8000
     image: ashrafkhan0277/hospital-user:1.0
     container_name: hospital_user_frontend
     ports:
