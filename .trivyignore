@@ -4,3 +4,16 @@
 # provide. Pulled in transitively via python-jose[cryptography]. No fixed
 # version exists to upgrade to, so this is accepted as a known risk.
 CVE-2024-23342
+
+# GHSA-6v7p-g79w-8964 (msgpack 1.1.2) and CVE-2025-47273 (setuptools 70.3.0)
+# — Trivy flags these under an aggregate "Python" target sourced from a
+# third-party SBOM embedded in a compiled dependency wheel (see Trivy's own
+# "Third-party SBOM may lead to inaccurate vulnerability detection" warning
+# in the scan log). That SBOM describes the *build-time* toolchain used by
+# PyPI's infrastructure when the wheel was originally compiled upstream —
+# not what's actually installed here. The real filesystem scan in the same
+# report confirms the versions actually installed are clean:
+# msgpack-1.2.1.dist-info and setuptools-84.0.0.dist-info both show 0
+# vulnerabilities. Ignored as a confirmed false positive.
+GHSA-6v7p-g79w-8964
+CVE-2025-47273
