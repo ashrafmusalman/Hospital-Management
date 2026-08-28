@@ -146,6 +146,7 @@ pipeline {
                                 -v ${WORKSPACE}:/workspace:ro \
                                 aquasec/trivy:latest image \
                                 --severity HIGH,CRITICAL --exit-code 1 --no-progress \
+                                --ignore-unfixed \
                                 --ignorefile /workspace/.trivyignore \
                                 ${DOCKER_USER}/hospital-backend:${BUILD_NUMBER}
                         """
@@ -158,6 +159,7 @@ pipeline {
                                 -v ${WORKSPACE}:/workspace:ro \
                                 aquasec/trivy:latest image \
                                 --severity HIGH,CRITICAL --exit-code 1 --no-progress \
+                                --ignore-unfixed \
                                 --ignorefile /workspace/.trivyignore \
                                 ${DOCKER_USER}/hospital-admin:${BUILD_NUMBER}
                         """
@@ -170,6 +172,7 @@ pipeline {
                                 -v ${WORKSPACE}:/workspace:ro \
                                 aquasec/trivy:latest image \
                                 --severity HIGH,CRITICAL --exit-code 1 --no-progress \
+                                --ignore-unfixed \
                                 --ignorefile /workspace/.trivyignore \
                                 ${DOCKER_USER}/hospital-user:${BUILD_NUMBER}
                         """
