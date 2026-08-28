@@ -67,9 +67,13 @@ Compose.
 
 ### CI/CD
 
-| Jenkins Pipeline | ArgoCD |
+| Jenkins — Pipeline Stages | Jenkins — Stage View |
 |---|---|
-| ![Jenkins pipeline](docs/screenshots/jenkins-pipeline.png) | ![ArgoCD](docs/screenshots/argocd.png) |
+| ![Jenkins pipeline stages](docs/screenshots/jenkins-pipeline.png) | ![Jenkins stage view](docs/screenshots/jenkins-stages.png) |
+
+| ArgoCD — Resource Tree | ArgoCD — Resource List |
+|---|---|
+| ![ArgoCD resource tree](docs/screenshots/argocd-tree.png) | ![ArgoCD resource list](docs/screenshots/argocd-list.png) |
 
 ## Stack
 
